@@ -23,19 +23,19 @@ namespace Nullforce.Mixer.Functions
 
             // Read the body
             string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
-            log.LogInformation(requestBody);
 
-            // TODO: Retrieve the secret from key vault
-            string secret = "my secret from key vault";
+            // Retrieve the secret
+            string secret = Environment.GetEnvironmentVariable("MIXER_CLIENT_SECRET");
 
             // Validate the request signature
-            // if (!IsRequestValid(req.Headers, secret, requestBody))
-            // {
-            //     log.LogInformation("Unauthorized request received. Request signature was invalid.");
-            //     return new UnauthorizedResult();
-            // }
+            if (!IsRequestValid(req.Headers, secret, requestBody))
+            {
+                log.LogInformation("Unauthorized request received. Request signature was invalid.");
+                return new UnauthorizedResult();
+            }
 
             // TODO: Process the event
+            log.LogInformation(requestBody);
             string name = req.Query["name"];
 
             dynamic data = JsonConvert.DeserializeObject(requestBody);
