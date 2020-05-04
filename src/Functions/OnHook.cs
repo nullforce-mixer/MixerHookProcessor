@@ -16,7 +16,7 @@ namespace Nullforce.Mixer.Functions
     {
         [FunctionName("OnHook")]
         public static async Task<IActionResult> Run(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post", Route = null)] HttpRequest req,
+            [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = null)] HttpRequest req,
             ILogger log)
         {
             log.LogInformation("C# HTTP trigger function processed a request.");
@@ -25,10 +25,17 @@ namespace Nullforce.Mixer.Functions
             string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
 
             // Retrieve the secret
-            string secret = Environment.GetEnvironmentVariable("MIXER_CLIENT_SECRET");
+            string secret = Environment.GetEnvironmentVariable("MIXER_SIGNATURE_SECRET") ?? string.Empty;
+
+            if (string.IsNullOrEmpty(secret))
+            {
+                log.LogWarning("Signature Secret is not configured");
+            }
 
             // Validate the request signature
-            if (!IsRequestValid(req.Headers, secret, requestBody))
+            string signature = req.Headers?["Poker-Signature"] ?? string.Empty;
+
+            if (!IsRequestValid(signature, secret, requestBody))
             {
                 log.LogInformation("Unauthorized request received. Request signature was invalid.");
                 return new UnauthorizedResult();
@@ -46,12 +53,30 @@ namespace Nullforce.Mixer.Functions
             return new OkObjectResult(responseMessage);
         }
 
-        private static bool IsRequestValid(IHeaderDictionary headers, string secret, string body)
+        private static bool IsRequestValid(string signature, string secret, string body)
         {
-            var hmac = new HMACSHA384(Encoding.UTF8.GetBytes(secret));
-            var hash = BitConverter.ToString(hmac.ComputeHash(Encoding.UTF8.GetBytes(body))).Replace("-", string.Empty);
-            return headers["Poker-Signature"].Equals($"sha384={hash}");
-        }
+            // If there's no secret, we accept any request as valid
+            if (string.IsNullOrEmpty(secret))
+            {
+                return true;
+            }
 
+            // We always expect a signature to prevent non-Mixer initiated requests
+            if (string.IsNullOrEmpty(signature))
+            {
+                return false;
+            }
+
+            var secretBytes = Encoding.UTF8.GetBytes(secret);
+
+            if (secretBytes != null)
+            {
+                var hmac = new HMACSHA384(secretBytes);
+                var hash = BitConverter.ToString(hmac.ComputeHash(Encoding.UTF8.GetBytes(body))).Replace("-", string.Empty);
+                return signature.Equals($"sha384={hash}");
+            }
+
+            return false;
+        }
     }
 }
