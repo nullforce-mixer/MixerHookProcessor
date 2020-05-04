@@ -23,6 +23,7 @@ namespace Nullforce.Mixer.Functions
 
             // Read the body
             string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
+            log.LogInformation(requestBody);
 
             // TODO: Retrieve the secret from key vault
             string secret = "my secret from key vault";
